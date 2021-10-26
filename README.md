@@ -1,5 +1,7 @@
 # SpaceInvader
 
-Description: This is a single player python game, where spacecraft fires rocket to destroy aliens and ufo. Destroy all aliens and ufo before they destroy you!
+Project: Space Invader Game
 
-Note: 
+Description: This is a single player python game, where spacecraft can fire rocket to destroy aliens and ufo. Destroy all aliens and ufo before they destroy you!
+
+Concept: OOP, observer pattern, singleton pattern.
