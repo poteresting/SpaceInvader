@@ -4,6 +4,7 @@ import random
 from typing import List
 from pynput import keyboard
 from pynput.keyboard import Key
+from Xlib.display import Display
 
 SCENE_WIDTH = 11
 SCENE_HEIGHT = 15
@@ -359,6 +360,9 @@ player = GameState.instance().player
 ship = GameState.instance().ship
 
 while GameState.instance().isGameRunning:
+    # Open the xlib display connection to X server to close it
+    display = Display()
+
     cmdClear = 'clear'
     if os.name == 'nt':
         cmdClear = 'cls'
@@ -472,3 +476,6 @@ while GameState.instance().isGameRunning:
                     elements.append(Explosion(pos))
                     isCollision = True
                     break
+
+    # Close the xlib display connection to avoid maximum connections
+    display.close()
