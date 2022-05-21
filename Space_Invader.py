@@ -2,9 +2,7 @@ import os
 import time
 import random
 from typing import List
-from pynput import keyboard
-from pynput.keyboard import Key
-from Xlib.display import Display
+import curses
 
 SCENE_WIDTH = 11
 SCENE_HEIGHT = 15
@@ -180,6 +178,9 @@ class Player(MovableElement):
 
 
 class Alien(MovableElement):
+        
+    all_aliens_pos = None
+
     def __init__(
         self,
         pos: Position2D,
@@ -208,7 +209,7 @@ class Alien(MovableElement):
 
     def checkBorder(self):
         isBorder = False
-        if round(self.position.x) == 0 or round(self.position.x) == SCENE_WIDTH:
+        if round(self.position.x) != Alien.all_aliens_pos and (round(self.position.x) == 0 or round(self.position.x) == SCENE_WIDTH):
             isBorder = True
             self._direction.x *= -1
             event = EventAlienDirection(
@@ -216,6 +217,9 @@ class Alien(MovableElement):
             )
             for listener in self._listenerAliens:
                 listener(event)
+            Alien.all_aliens_pos = round(self.position.x)
+
+                
         return isBorder
 
     def fireRocket(self):
@@ -360,8 +364,8 @@ player = GameState.instance().player
 ship = GameState.instance().ship
 
 while GameState.instance().isGameRunning:
-    # Open the xlib display connection to X server to close it
-    display = Display()
+    # Start curses
+    stdscr = curses.initscr()
 
     cmdClear = 'clear'
     if os.name == 'nt':
@@ -381,54 +385,53 @@ while GameState.instance().isGameRunning:
     if GameState.instance().lives == 0 or GameState.instance().bottomCollision:
         scene[int(player.position.y)][int(player.position.x)] = '❌'
 
-    sceneLines = []
-    for line in scene:
-        strLine = ''.join(line)
-        sceneLines.append(strLine)
-    strScene = '\n'.join(sceneLines)
-    print(f'Score: {GameState.instance().score}  Lives:{GameState.instance().lives*"🚀"}')
-    print(strScene)
+    try:
+        # start curses input
+        curses.noecho()
+        curses.cbreak()
+        stdscr.keypad(True)
+        stdscr.clear()
+        stdscr.nodelay(True)
+        stdscr.timeout(200)
+        sceneLines = []
+        for line in scene:
+            strLine = ''.join(line)
+            sceneLines.append(strLine)
+        strScene = '\n'.join(sceneLines)
+        stdscr.addstr(0, 0 , 'Score: {} Lives: {}'.format(GameState.instance().score, GameState.instance().lives*"🚀"))
+        stdscr.addstr(1, 0, strScene)
+        stdscr.refresh()
 
-    delay = 0.2
-    timeStamp = time.time()
-
-    with keyboard.Events() as events:
-        keyPress = events.get(delay)
-
-        if keyPress is not None:
-            keyCode = keyPress.key
-            if keyCode == Key.left:
-                player.left()
-            elif keyCode == Key.right:
-                player.right()
-            elif keyCode == Key.space:
-                if player in elements and player._patience < 0:
-                    player.fireRocket()
-            elif keyCode == Key.esc:
-                GameState.instance().isGameRunning = False
-        else:
-            player.stop()
-
-    dt = delay - (time.time() - timeStamp)
-    if dt > 0:
-        time.sleep(dt)
+        timeStamp = time.time()
+        keyPress = stdscr.getch()
+        if keyPress == curses.KEY_LEFT:
+            player.left()
+        elif keyPress == curses.KEY_RIGHT:
+            player.right()
+        elif keyPress == curses.KEY_UP or keyPress == curses.KEY_DOWN:
+            if player in elements and player._patience < 0:
+                player.fireRocket()
+        elif keyPress == curses.KEY_BACKSPACE:
+            GameState.instance().isGameRunning = False
+    finally:
+        # Terminate curses
+        curses.nocbreak()
+        stdscr.keypad(False)
+        curses.echo()
+        curses.endwin()
 
     for elem in elements:
-        if type(elem) == Alien:
-            if elem.checkBorder():
-                break
-    for elem in elements:
-        if type(elem) == AlienShip:
+        if type(elem) == Alien or type(elem) == AlienShip:
             if elem.checkBorder():
                 break
 
     dt = time.time() - timeStamp
+    
     for elem in elements:
         elem.update(dt)
 
     if GameState.instance().lives > 0 and player not in elements:
         player.position.x = int(SCENE_WIDTH/2)
-        time.sleep(dt)
         elements.append(player)
         if ship not in elements:
             elements.append(ship)
@@ -441,6 +444,7 @@ while GameState.instance().isGameRunning:
     
     if GameState.instance().lives == 0 or GameState.instance().bottomCollision:
         if scene[int(player.position.y)][int(player.position.x)] == '❌':
+            print(strScene)
             print("👽 🇬 🇦 🇲 🇪  🇴 🇻 🇪 🇷 ❗")
             exit()
     
@@ -451,6 +455,7 @@ while GameState.instance().isGameRunning:
                 won = False
                 break
         if won:
+            print(strScene)
             print("🏆 🇾 🇴 🇺   🇼 🇴 🇳 ❗ 🌎")
             exit()
 
@@ -476,6 +481,3 @@ while GameState.instance().isGameRunning:
                     elements.append(Explosion(pos))
                     isCollision = True
                     break
-
-    # Close the xlib display connection to avoid maximum connections
-    display.close()
