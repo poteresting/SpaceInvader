@@ -479,6 +479,9 @@ while GameState.instance().isGameRunning:
                 if (type(elements[i]) == Rocket and elements[i].char == '🔥' and type(elements[j]) == Alien) or \
                     (type(elements[j]) == Rocket and elements[j].char == '🔥' and type(elements[i]) == Alien):
                     break
+                if (type(elements[i]) == Rocket and elements[i].char == '🔺' and type(elements[j]) == Player) or \
+                    (type(elements[j]) == Rocket and elements[j].char == '🔺' and type(elements[i]) == Player):
+                    break
                 if elements[i].checkCollision(elements[j]):
                     pos = elements[i].position
                     if elements[i] == player or elements[j] == player:
