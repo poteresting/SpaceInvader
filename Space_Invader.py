@@ -68,7 +68,8 @@ class Element(object):
 
     def checkCollision(self, other):
         isCollision = False
-        # This does not work as expected but only after some time interesting...
+        # This does not work as soon as rocket fired but after some time only. interesting... delay is creating collision issue
+        # TODO: Needed fix
         # if self.char == '👾' and other.char == '🔺':
         #         isCollision = True
         if int(other.position.x) == int(self.position.x) and \
@@ -148,6 +149,9 @@ class Rocket(MovableElement):
 
     def update(self, delta_time):
         super().update(delta_time)
+        if self.char == '🔺':
+            self.position.y = min(self.position.y + self._direction.y * self._speed * delta_time, SCENE_HEIGHT - 1)
+
         if int(self.position.y) == 0:
             GameState.instance().elements.remove(self)
 
@@ -163,7 +167,7 @@ class Player(MovableElement):
         self._patience = 0
     
     def resetPatience(self):
-        self._patience = 2.5
+        self._patience = 1.75
 
     def fireRocket(self):
         rocket = Rocket(pos=Position2D(
