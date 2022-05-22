@@ -1,8 +1,10 @@
+import imp
 import os
 import time
 import random
 from typing import List
 import curses
+import math
 
 SCENE_WIDTH = 11
 SCENE_HEIGHT = 15
@@ -66,6 +68,9 @@ class Element(object):
 
     def checkCollision(self, other):
         isCollision = False
+        # This does not work as expected but only after some time interesting...
+        # if self.char == '👾' and other.char == '🔺':
+        #         isCollision = True
         if int(other.position.x) == int(self.position.x) and \
                 int(other.position.y) == int(self.position.y):
             isCollision = True
@@ -153,7 +158,7 @@ class Rocket(MovableElement):
 class Player(MovableElement):
     def __init__(self):
         super().__init__()
-        self._speed = 1.5
+        self._speed = 1.65
         self._char = '🚀'
         self._patience = 0
     
@@ -174,6 +179,12 @@ class Player(MovableElement):
 
     def update(self, deltaTime):
         super(Player, self).update(deltaTime)
+        if self._direction.x > 0:
+            self.position.x = int(self.position.x + self._direction.x)
+            self.position.y = int(self.position.y + self._direction.y)
+        else:
+            self.position.x = math.ceil(self.position.x + self._direction.x)
+            self.position.y = math.ceil(self.position.y + self._direction.y)
         self._patience -= deltaTime
 
 
@@ -337,6 +348,8 @@ class GameState(object):
         self.score = 0
         self.bottomCollision = False
 
+        self.curses = curses.initscr()
+
         self.listenerAliens = []
 
         for i in range(5):
@@ -362,11 +375,8 @@ class GameState(object):
 elements = GameState.instance().elements
 player = GameState.instance().player
 ship = GameState.instance().ship
-
+stdscr = GameState.instance().curses
 while GameState.instance().isGameRunning:
-    # Start curses
-    stdscr = curses.initscr()
-
     cmdClear = 'clear'
     if os.name == 'nt':
         cmdClear = 'cls'
@@ -389,10 +399,11 @@ while GameState.instance().isGameRunning:
         # start curses input
         curses.noecho()
         curses.cbreak()
+        curses.curs_set(False)
         stdscr.keypad(True)
-        stdscr.clear()
+        stdscr.erase()
         stdscr.nodelay(True)
-        stdscr.timeout(200)
+        stdscr.timeout(600)
         sceneLines = []
         for line in scene:
             strLine = ''.join(line)
@@ -403,15 +414,17 @@ while GameState.instance().isGameRunning:
         stdscr.refresh()
 
         timeStamp = time.time()
+        curses.flushinp()
         keyPress = stdscr.getch()
+        player.stop()
         if keyPress == curses.KEY_LEFT:
             player.left()
-        elif keyPress == curses.KEY_RIGHT:
+        if keyPress == curses.KEY_RIGHT:
             player.right()
-        elif keyPress == curses.KEY_UP or keyPress == curses.KEY_DOWN:
+        if keyPress == curses.KEY_UP or keyPress == curses.KEY_DOWN:
             if player in elements and player._patience < 0:
                 player.fireRocket()
-        elif keyPress == curses.KEY_BACKSPACE:
+        if keyPress == curses.KEY_BACKSPACE:
             GameState.instance().isGameRunning = False
     finally:
         # Terminate curses
@@ -419,7 +432,6 @@ while GameState.instance().isGameRunning:
         stdscr.keypad(False)
         curses.echo()
         curses.endwin()
-
     for elem in elements:
         if type(elem) == Alien or type(elem) == AlienShip:
             if elem.checkBorder():
