@@ -68,12 +68,8 @@ class Element(object):
 
     def checkCollision(self, other):
         isCollision = False
-        # This does not work as soon as rocket fired but after some time only. interesting... delay is creating collision issue
-        # TODO: Needed fix
-        # if self.char == '👾' and other.char == '🔺':
-        #         isCollision = True
         if int(other.position.x) == int(self.position.x) and \
-                int(other.position.y) == int(self.position.y):
+            int(other.position.y) == int(self.position.y):
             isCollision = True
         return isCollision
 
@@ -106,8 +102,12 @@ class MovableElement(Element):
         self._direction = Position2D(x=0, y=0, isDirection=True)
 
     def update(self, delta_time):
-        self.position.x += self._direction.x * self._speed * delta_time
-        self.position.y += self._direction.y * self._speed * delta_time
+        if self.char == '🔺':
+            self.position.x = self.position.x
+            self.position.y = self.position.y + self._direction.y
+        else:
+            self.position.x += self._direction.x * self._speed * delta_time
+            self.position.y += self._direction.y * self._speed * delta_time
 
     def stop(self):
         self._direction.x = 0
@@ -149,9 +149,6 @@ class Rocket(MovableElement):
 
     def update(self, delta_time):
         super().update(delta_time)
-        if self.char == '🔺':
-            self.position.y = min(self.position.y + self._direction.y * self._speed * delta_time, SCENE_HEIGHT - 1)
-
         if int(self.position.y) == 0:
             GameState.instance().elements.remove(self)
 
@@ -482,10 +479,10 @@ while GameState.instance().isGameRunning:
                 (type(elements[j]) != Rocket and type(elements[i]) == Rocket):
                 if (type(elements[i]) == Rocket and elements[i].char == '🔥' and type(elements[j]) == Alien) or \
                     (type(elements[j]) == Rocket and elements[j].char == '🔥' and type(elements[i]) == Alien):
-                    break
+                    continue
                 if (type(elements[i]) == Rocket and elements[i].char == '🔺' and type(elements[j]) == Player) or \
                     (type(elements[j]) == Rocket and elements[j].char == '🔺' and type(elements[i]) == Player):
-                    break
+                    continue
                 if elements[i].checkCollision(elements[j]):
                     pos = elements[i].position
                     if elements[i] == player or elements[j] == player:
