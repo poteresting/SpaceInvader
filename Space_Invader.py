@@ -82,7 +82,7 @@ class Wall(Element):
 
 
 class Explosion(Element):
-    def __init__(self, position):  # constructor
+    def __init__(self, position):
         super().__init__()
         self._char = '💥'
         self._position = position
