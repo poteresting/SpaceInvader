@@ -2,8 +2,8 @@ import os
 import time
 import random
 from typing import List
-from pynput import keyboard
-from pynput.keyboard import Key
+import curses
+import math
 
 SCENE_WIDTH = 11
 SCENE_HEIGHT = 15
@@ -68,7 +68,7 @@ class Element(object):
     def checkCollision(self, other):
         isCollision = False
         if int(other.position.x) == int(self.position.x) and \
-                int(other.position.y) == int(self.position.y):
+            int(other.position.y) == int(self.position.y):
             isCollision = True
         return isCollision
 
@@ -81,7 +81,7 @@ class Wall(Element):
 
 
 class Explosion(Element):
-    def __init__(self, position):  # constructor
+    def __init__(self, position):
         super().__init__()
         self._char = '💥'
         self._position = position
@@ -101,8 +101,12 @@ class MovableElement(Element):
         self._direction = Position2D(x=0, y=0, isDirection=True)
 
     def update(self, delta_time):
-        self.position.x += self._direction.x * self._speed * delta_time
-        self.position.y += self._direction.y * self._speed * delta_time
+        if self.char == '🔺':
+            self.position.x = self.position.x
+            self.position.y = self.position.y + self._direction.y
+        else:
+            self.position.x += self._direction.x * self._speed * delta_time
+            self.position.y += self._direction.y * self._speed * delta_time
 
     def stop(self):
         self._direction.x = 0
@@ -154,12 +158,12 @@ class Rocket(MovableElement):
 class Player(MovableElement):
     def __init__(self):
         super().__init__()
-        self._speed = 1.5
+        self._speed = 1.65
         self._char = '🚀'
         self._patience = 0
     
     def resetPatience(self):
-        self._patience = 2.5
+        self._patience = 1.75
 
     def fireRocket(self):
         rocket = Rocket(pos=Position2D(
@@ -175,10 +179,19 @@ class Player(MovableElement):
 
     def update(self, deltaTime):
         super(Player, self).update(deltaTime)
+        if self._direction.x > 0:
+            self.position.x = int(self.position.x + self._direction.x)
+            self.position.y = int(self.position.y + self._direction.y)
+        else:
+            self.position.x = math.ceil(self.position.x + self._direction.x)
+            self.position.y = math.ceil(self.position.y + self._direction.y)
         self._patience -= deltaTime
 
 
 class Alien(MovableElement):
+        
+    all_aliens_pos = None
+
     def __init__(
         self,
         pos: Position2D,
@@ -207,7 +220,7 @@ class Alien(MovableElement):
 
     def checkBorder(self):
         isBorder = False
-        if round(self.position.x) == 0 or round(self.position.x) == SCENE_WIDTH:
+        if round(self.position.x) != Alien.all_aliens_pos and (round(self.position.x) == 0 or round(self.position.x) == SCENE_WIDTH):
             isBorder = True
             self._direction.x *= -1
             event = EventAlienDirection(
@@ -215,6 +228,9 @@ class Alien(MovableElement):
             )
             for listener in self._listenerAliens:
                 listener(event)
+            Alien.all_aliens_pos = round(self.position.x)
+
+                
         return isBorder
 
     def fireRocket(self):
@@ -332,6 +348,8 @@ class GameState(object):
         self.score = 0
         self.bottomCollision = False
 
+        self.curses = curses.initscr()
+
         self.listenerAliens = []
 
         for i in range(5):
@@ -357,7 +375,7 @@ class GameState(object):
 elements = GameState.instance().elements
 player = GameState.instance().player
 ship = GameState.instance().ship
-
+stdscr = GameState.instance().curses
 while GameState.instance().isGameRunning:
     cmdClear = 'clear'
     if os.name == 'nt':
@@ -377,54 +395,55 @@ while GameState.instance().isGameRunning:
     if GameState.instance().lives == 0 or GameState.instance().bottomCollision:
         scene[int(player.position.y)][int(player.position.x)] = '❌'
 
-    sceneLines = []
-    for line in scene:
-        strLine = ''.join(line)
-        sceneLines.append(strLine)
-    strScene = '\n'.join(sceneLines)
-    print(f'Score: {GameState.instance().score}  Lives:{GameState.instance().lives*"🚀"}')
-    print(strScene)
+    try:
+        # start curses input
+        curses.noecho()
+        curses.cbreak()
+        curses.curs_set(False)
+        stdscr.keypad(True)
+        stdscr.erase()
+        stdscr.nodelay(True)
+        stdscr.timeout(600)
+        sceneLines = []
+        for line in scene:
+            strLine = ''.join(line)
+            sceneLines.append(strLine)
+        strScene = '\n'.join(sceneLines)
+        stdscr.addstr(0, 0 , 'Score: {} Lives: {}'.format(GameState.instance().score, GameState.instance().lives*"🚀"))
+        stdscr.addstr(1, 0, strScene)
+        stdscr.refresh()
 
-    delay = 0.2
-    timeStamp = time.time()
-
-    with keyboard.Events() as events:
-        keyPress = events.get(delay)
-
-        if keyPress is not None:
-            keyCode = keyPress.key
-            if keyCode == Key.left:
-                player.left()
-            elif keyCode == Key.right:
-                player.right()
-            elif keyCode == Key.space:
-                if player in elements and player._patience < 0:
-                    player.fireRocket()
-            elif keyCode == Key.esc:
-                GameState.instance().isGameRunning = False
-        else:
-            player.stop()
-
-    dt = delay - (time.time() - timeStamp)
-    if dt > 0:
-        time.sleep(dt)
-
+        timeStamp = time.time()
+        curses.flushinp()
+        keyPress = stdscr.getch()
+        player.stop()
+        if keyPress == curses.KEY_LEFT:
+            player.left()
+        if keyPress == curses.KEY_RIGHT:
+            player.right()
+        if keyPress == curses.KEY_UP or keyPress == curses.KEY_DOWN:
+            if player in elements and player._patience < 0:
+                player.fireRocket()
+        if keyPress == curses.KEY_BACKSPACE:
+            GameState.instance().isGameRunning = False
+    finally:
+        # Terminate curses
+        curses.nocbreak()
+        stdscr.keypad(False)
+        curses.echo()
+        curses.endwin()
     for elem in elements:
-        if type(elem) == Alien:
-            if elem.checkBorder():
-                break
-    for elem in elements:
-        if type(elem) == AlienShip:
+        if type(elem) == Alien or type(elem) == AlienShip:
             if elem.checkBorder():
                 break
 
     dt = time.time() - timeStamp
+    
     for elem in elements:
         elem.update(dt)
 
     if GameState.instance().lives > 0 and player not in elements:
         player.position.x = int(SCENE_WIDTH/2)
-        time.sleep(dt)
         elements.append(player)
         if ship not in elements:
             elements.append(ship)
@@ -437,6 +456,7 @@ while GameState.instance().isGameRunning:
     
     if GameState.instance().lives == 0 or GameState.instance().bottomCollision:
         if scene[int(player.position.y)][int(player.position.x)] == '❌':
+            print(strScene)
             print("👽 🇬 🇦 🇲 🇪  🇴 🇻 🇪 🇷 ❗")
             exit()
     
@@ -447,6 +467,7 @@ while GameState.instance().isGameRunning:
                 won = False
                 break
         if won:
+            print(strScene)
             print("🏆 🇾 🇴 🇺   🇼 🇴 🇳 ❗ 🌎")
             exit()
 
@@ -457,7 +478,10 @@ while GameState.instance().isGameRunning:
                 (type(elements[j]) != Rocket and type(elements[i]) == Rocket):
                 if (type(elements[i]) == Rocket and elements[i].char == '🔥' and type(elements[j]) == Alien) or \
                     (type(elements[j]) == Rocket and elements[j].char == '🔥' and type(elements[i]) == Alien):
-                    break
+                    continue
+                if (type(elements[i]) == Rocket and elements[i].char == '🔺' and type(elements[j]) == Player) or \
+                    (type(elements[j]) == Rocket and elements[j].char == '🔺' and type(elements[i]) == Player):
+                    continue
                 if elements[i].checkCollision(elements[j]):
                     pos = elements[i].position
                     if elements[i] == player or elements[j] == player:
